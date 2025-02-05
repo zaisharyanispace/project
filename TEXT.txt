@@ -1,0 +1,56 @@
+#include "stm32f4xx.h" // For STM32F411CEU6
+
+void delay(uint32_t time) {
+    while (time--);
+}
+
+int main(void) {
+    // Enable clocks for GPIOA, GPIOB, and GPIOC
+    RCC->AHB1ENR |= 0x07; // Enable GPIOA, GPIOB, GPIOC clocks
+
+    // Configure PA0 as analog input
+    GPIOA->MODER |= 0x00000003; // Set PA0 to analog mode
+
+    // Configure PC15 as output
+    GPIOC->MODER &= ~0xC0000000; // Clear mode bits for PC15
+    GPIOC->MODER |= 0x40000000;  // Set PC15 to output mode
+
+    // Configure PC14 as output
+    GPIOC->MODER &= ~0x30000000; // Clear mode bits for PC14
+    GPIOC->MODER |= 0x10000000;  // Set PC14 to output mode
+
+    // Configure PB9 as input with pull-down resistor
+    GPIOB->MODER &= ~0x000C0000; // Clear mode bits for PB9
+    GPIOB->PUPDR &= ~0x000C0000; // Clear pull-up/down bits for PB9
+    GPIOB->PUPDR |= 0x00080000;  // Set pull-down resistor for PB9
+
+    // Configure ADC1 for PA0
+    RCC->APB2ENR |= 0x00000100;  // Enable ADC1 clock
+    ADC1->SQR3 = 0x00;           // Set PA0 as first conversion channel
+    ADC1->CR2 |= 0x01;           // Enable ADC1
+
+    while (1) {
+        // Start ADC conversion
+        ADC1->CR2 |= 0x40000000; // Start conversion
+        while (!(ADC1->SR & 0x02)); // Wait for conversion to complete
+
+        // Read ADC value
+        uint16_t analogValue = ADC1->DR;
+
+        // Check if the analog value is below 1115 (corresponding to 0.9V)
+        if (analogValue < 1115) {
+            GPIOC->ODR |= 0x8000; // Set PC15 HIGH
+        } else {
+            GPIOC->ODR &= ~0x8000; // Set PC15 LOW
+        }
+
+        // Check if the button connected to PB9 is pressed
+        if (!(GPIOB->IDR & 0x0200)) { // Check if PB9 is LOW
+            GPIOC->ODR |= 0x4000; // Set PC14 HIGH
+            delay(16000000);      // Approximate delay for 5 seconds
+            GPIOC->ODR &= ~0x4000; // Set PC14 LOW
+        }
+
+        delay(800000); // Add a short delay for readability (~500ms approx.)
+    }
+}
